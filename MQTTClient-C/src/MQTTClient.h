@@ -213,6 +213,11 @@ DLLExport int MQTTDisconnect(MQTTClient* client);
  */
 DLLExport int MQTTYield(MQTTClient* client, int time);
 
+/* ThingSpace Modification:
+ * The following #ifndef was added on Jan 10, 2018 for the sake of removing
+ * the duplicate symbol generated when building using, cc (xcode)
+ */
+#ifndef TS_REMOVE_INLINE_MQTTISCONNECTED
 /** MQTT isConnected
  *  @param client - the client object to use
  *  @return truth value indicating whether the client is connected to the server
@@ -221,6 +226,7 @@ DLLExport int MQTTIsConnected(MQTTClient* client)
 {
   return client->isconnected;
 }
+#endif
 
 #if defined(MQTT_TASK)
 /** MQTT start background thread for a client.  After this, MQTTYield should not be called.

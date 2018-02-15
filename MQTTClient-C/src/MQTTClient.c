@@ -28,14 +28,18 @@ static int getNextPacketId(MQTTClient *c) {
 }
 
 
+#define WRITE_TIMEOUT_MS			3000
 static int sendPacket(MQTTClient* c, int length, Timer* timer)
 {
     int rc = FAILURE,
         sent = 0;
+    Timer write_timer;
+    TimerInit(&write_timer);
+    TimerCountdownMS(&write_timer, WRITE_TIMEOUT_MS);
 
-    while (sent < length && !TimerIsExpired(timer))
+    while (sent < length && !TimerIsExpired(&write_timer))
     {
-        rc = c->ipstack->mqttwrite(c->ipstack, &c->buf[sent], length, TimerLeftMS(timer));
+        rc = c->ipstack->mqttwrite(c->ipstack, &c->buf[sent], length, TimerLeftMS(&write_timer));
         if (rc < 0)  // there was an error writing the data
             break;
         sent += rc;
@@ -105,20 +109,24 @@ exit:
 }
 
 
+#define READ_TIMEOUT_MS			3000
 static int readPacket(MQTTClient* c, Timer* timer)
 {
     MQTTHeader header = {0};
     int len = 0;
     int rem_len = 0;
 
+    Timer read_timer;
+    TimerInit(&read_timer);
+    TimerCountdownMS(&read_timer, READ_TIMEOUT_MS);
     /* 1. read the header byte.  This has the packet type in it */
-    int rc = c->ipstack->mqttread(c->ipstack, c->readbuf, 1, TimerLeftMS(timer));
+    int rc = c->ipstack->mqttread(c->ipstack, c->readbuf, 1, TimerLeftMS(&read_timer));
     if (rc != 1)
         goto exit;
 
     len = 1;
     /* 2. read the remaining length.  This is variable in itself */
-    decodePacket(c, &rem_len, TimerLeftMS(timer));
+    decodePacket(c, &rem_len, TimerLeftMS(&read_timer));
     len += MQTTPacket_encode(c->readbuf + 1, rem_len); /* put the original remaining length back into the buffer */
 
     if (rem_len > (c->readbuf_size - len))
@@ -128,7 +136,7 @@ static int readPacket(MQTTClient* c, Timer* timer)
     }
 
     /* 3. read the rest of the buffer using a callback to supply the rest of the data */
-    if (rem_len > 0 && (rc = c->ipstack->mqttread(c->ipstack, c->readbuf + len, rem_len, TimerLeftMS(timer)) != rem_len)) {
+    if (rem_len > 0 && (rc = c->ipstack->mqttread(c->ipstack, c->readbuf + len, rem_len, TimerLeftMS(&read_timer)) != rem_len)) {
         rc = 0;
         goto exit;
     }
